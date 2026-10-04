@@ -1,0 +1,68 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { App } from "./App";
+import * as api from "./api";
+
+vi.mock("./Turnstile", () => ({
+  Turnstile: ({
+    onToken,
+  }: {
+    onToken: (token: string) => void;
+  }) => (
+    <button type="button" onClick={() => onToken("test-token")}>
+      Solve captcha
+    </button>
+  ),
+}));
+
+const info = {
+  slug: "devnet",
+  name: "Devnet",
+  dripAmount: "0.01",
+  symbol: "SOL",
+  cooldownSeconds: 86400,
+  explorerUrl: "https://explorer.solana.com",
+  faucetAddress: "HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk",
+  faucetExplorerUrl:
+    "https://explorer.solana.com/address/HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk?cluster=devnet",
+  balance: "1.500",
+  paused: false,
+};
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe("App", () => {
+  it("renders Devnet and the drip amount", async () => {
+    vi.spyOn(api, "fetchChainInfo").mockResolvedValue(info);
+    render(<App />);
+
+    expect(screen.getByText("Sol Faucet")).toBeInTheDocument();
+    await waitFor(() => {
+      const select = screen.getByRole("combobox");
+      expect(select).toHaveValue("devnet");
+      expect(select).toBeDisabled();
+      expect(screen.getByText("0.01 SOL")).toBeInTheDocument();
+    });
+    expect(screen.getByRole("link", { name: info.faucetAddress })).toHaveAttribute(
+      "href",
+      info.faucetExplorerUrl,
+    );
+  });
+
+  it("validates the address before submitting", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(api, "fetchChainInfo").mockResolvedValue({ ...info, faucetAddress: null, faucetExplorerUrl: null });
+    const drip = vi.spyOn(api, "requestDrip");
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByText("0.01 SOL")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Solve captcha" }));
+    await user.click(screen.getByRole("button", { name: "Request drip" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Enter a wallet address");
+    expect(drip).not.toHaveBeenCalled();
+  });
+});

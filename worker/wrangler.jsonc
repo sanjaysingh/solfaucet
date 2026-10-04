@@ -1,0 +1,26 @@
+{
+  "name": "sol-faucet-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-04",
+  "workers_dev": true,
+  "observability": {
+    "enabled": true,
+    "traces": {
+      "enabled": true
+    }
+  },
+  "kv_namespaces": [
+    {
+      "binding": "COOLDOWN_KV",
+      "id": "d375d1c3ec384bb19e480649f531aba1"
+    }
+  ],
+  "vars": {
+    "ALLOWED_ORIGINS": "https://solfaucet.sanjaysingh.net,https://solwallet.sanjaysingh.net,http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000,http://localhost:9876,http://127.0.0.1:9876",
+    "RPC_URL": "https://api.devnet.solana.com",
+    "DRIP_LAMPORTS": "10000000",
+    "COOLDOWN_SECONDS": "86400",
+    "IP_HASH_SALT": "solwallet-faucet-v1",
+    "PAUSED_CHAINS": ""
+  }
+}

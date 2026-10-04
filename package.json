@@ -1,0 +1,10 @@
+{
+  "name": "sol-faucet",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Devnet SOL faucet (GitHub Pages + Cloudflare Worker)",
+  "scripts": {
+    "test": "npm run test --prefix worker && npm run test --prefix frontend",
+    "typecheck": "npm run typecheck --prefix frontend"
+  }
+}

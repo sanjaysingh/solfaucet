@@ -1,0 +1,2 @@
+TURNSTILE_SECRET_KEY=replace-me
+FAUCET_SECRET_KEY=base58-devnet-secret-or-json-byte-array
