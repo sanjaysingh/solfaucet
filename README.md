@@ -119,7 +119,7 @@ npx wrangler secret put FAUCET_SECRET_KEY
 Vars already in `wrangler.jsonc`:
 
 - `ALLOWED_ORIGINS` — the deployed sites plus localhost and `127.0.0.1` on ports `5173`, `8000`, and `9876`
-- `RPC_URL` — optional Devnet override. The defaults are `https://api.devnet.solana.com` and `https://api.testnet.solana.com`. `RPC_URL_DEVNET` and `RPC_URL_TESTNET` override one network.
+- `RPC_URL` — Devnet endpoint. The defaults are `https://rpc.magicblock.app/devnet` and `https://solana-testnet-rpc.publicnode.com`, because the official `api.devnet.solana.com` and `api.testnet.solana.com` endpoints block Cloudflare. `RPC_URL_DEVNET` and `RPC_URL_TESTNET` override one network.
 - `DRIP_LAMPORTS` — `10000000` (0.01 SOL)
 - `COOLDOWN_SECONDS` — `86400`
 - `PAUSED_CHAINS` — optional, e.g. `testnet` to shut one network off
