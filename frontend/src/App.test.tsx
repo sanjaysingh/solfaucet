@@ -43,7 +43,8 @@ describe("App", () => {
     await waitFor(() => {
       const select = screen.getByRole("combobox");
       expect(select).toHaveValue("devnet");
-      expect(select).toBeDisabled();
+      expect(select).toBeEnabled();
+      expect(screen.getByRole("option", { name: "Testnet" })).toBeInTheDocument();
       expect(screen.getByText("0.01 SOL")).toBeInTheDocument();
     });
     expect(screen.getByRole("link", { name: info.faucetAddress })).toHaveAttribute(
@@ -64,5 +65,26 @@ describe("App", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Enter a wallet address");
     expect(drip).not.toHaveBeenCalled();
+  });
+
+  it("loads Testnet when the network changes", async () => {
+    const user = userEvent.setup();
+    const fetchInfo = vi.spyOn(api, "fetchChainInfo").mockImplementation(async (next) => ({
+      ...info,
+      slug: next,
+      name: next === "testnet" ? "Testnet" : "Devnet",
+      faucetExplorerUrl: `https://explorer.solana.com/address/${info.faucetAddress}?cluster=${next}`,
+    }));
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue("devnet"));
+    await user.selectOptions(screen.getByRole("combobox"), "testnet");
+
+    await waitFor(() => expect(fetchInfo).toHaveBeenCalledWith("testnet"));
+    expect(screen.getByRole("combobox")).toHaveValue("testnet");
+    expect(screen.getByRole("link", { name: info.faucetAddress })).toHaveAttribute(
+      "href",
+      "https://explorer.solana.com/address/HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk?cluster=testnet",
+    );
   });
 });

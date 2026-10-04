@@ -1,4 +1,4 @@
-/** Devnet faucet API: send 0.01 SOL from the configured wallet. */
+/** Devnet and Testnet faucet API: send 0.01 SOL from the configured wallet. */
 
 const DRIP_DEFAULT = 10_000_000n;
 const COOLDOWN_DEFAULT = 86_400;
@@ -10,6 +10,11 @@ const BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 const ED25519_PKCS8_PREFIX = Uint8Array.from([
     0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20,
 ]);
+const CHAINS = [
+    { slug: 'devnet', name: 'Devnet', rpcUrl: 'https://api.devnet.solana.com' },
+    { slug: 'testnet', name: 'Testnet', rpcUrl: 'https://api.testnet.solana.com' },
+];
+
 const PUBKEY_COMPARE = {
     localeMatcher: 'best fit',
     usage: 'sort',
@@ -276,8 +281,24 @@ function json(request, env, data, status = 200) {
     });
 }
 
-async function rpc(env, method, params) {
-    const response = await fetch(env.RPC_URL, {
+function getChain(slug) {
+    const normalized = String(slug || '').trim().toLowerCase();
+    return CHAINS.find((chain) => chain.slug === normalized) || null;
+}
+
+function chainRpcUrl(env, chain) {
+    const specific = env[`RPC_URL_${chain.slug.toUpperCase()}`];
+    if (specific) return specific;
+    if (chain.slug === 'devnet' && env.RPC_URL) return env.RPC_URL;
+    return chain.rpcUrl;
+}
+
+function chainSecret(env, chain) {
+    return env[`FAUCET_SECRET_KEY_${chain.slug.toUpperCase()}`] || env.FAUCET_SECRET_KEY || '';
+}
+
+async function rpc(env, chain, method, params) {
+    const response = await fetch(chainRpcUrl(env, chain), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
@@ -335,20 +356,20 @@ function enqueue(task) {
     return run;
 }
 
-async function sendDrip(env, toAddress) {
-    const { seed, publicKey } = await seedFromSecret(env.FAUCET_SECRET_KEY);
+async function sendDrip(env, chain, toAddress) {
+    const { seed, publicKey } = await seedFromSecret(chainSecret(env, chain));
     const from = encodeBase58(publicKey);
-    const balance = BigInt((await rpc(env, 'getBalance', [from, { commitment: 'confirmed' }])).value);
-    const rent = BigInt(await rpc(env, 'getMinimumBalanceForRentExemption', [0]));
+    const balance = BigInt((await rpc(env, chain, 'getBalance', [from, { commitment: 'confirmed' }])).value);
+    const rent = BigInt(await rpc(env, chain, 'getMinimumBalanceForRentExemption', [0]));
     const lamports = dripLamports(env);
-    const latest = await rpc(env, 'getLatestBlockhash', [{ commitment: 'confirmed' }]);
+    const latest = await rpc(env, chain, 'getLatestBlockhash', [{ commitment: 'confirmed' }]);
     const built = await buildAndSignSolTransfer({
         seed,
         to: toAddress,
         lamports,
         blockhash: latest.value.blockhash,
     });
-    const fee = BigInt((await rpc(env, 'getFeeForMessage', [
+    const fee = BigInt((await rpc(env, chain, 'getFeeForMessage', [
         bytesToBase64(built.message),
         { commitment: 'confirmed' },
     ])).value ?? 5000);
@@ -357,28 +378,39 @@ async function sendDrip(env, toAddress) {
         error.code = 'FAUCET_EMPTY';
         throw error;
     }
-    const signature = await rpc(env, 'sendTransaction', [
+    const signature = await rpc(env, chain, 'sendTransaction', [
         bytesToBase64(built.wire),
         { encoding: 'base64', skipPreflight: false, preflightCommitment: 'confirmed' },
     ]);
     return { signature, from };
 }
 
-function isPaused(env) {
+function isPaused(env, slug) {
     return String(env.PAUSED_CHAINS || '')
         .split(',')
         .map((item) => item.trim().toLowerCase())
         .filter(Boolean)
-        .includes('devnet');
+        .includes(slug);
 }
 
-async function chainInfo(env) {
+function chainSummary(env, chain) {
+    return {
+        slug: chain.slug,
+        name: chain.name,
+        dripAmount: '0.01',
+        cooldownSeconds: cooldownSeconds(env),
+        symbol: 'SOL',
+        explorerUrl: `https://explorer.solana.com/?cluster=${chain.slug}`,
+    };
+}
+
+async function chainInfo(env, chain) {
     let faucetAddress = null;
     let balance = null;
     try {
-        const { publicKey } = await seedFromSecret(env.FAUCET_SECRET_KEY);
+        const { publicKey } = await seedFromSecret(chainSecret(env, chain));
         faucetAddress = encodeBase58(publicKey);
-        const lamports = BigInt((await rpc(env, 'getBalance', [faucetAddress, { commitment: 'confirmed' }])).value);
+        const lamports = BigInt((await rpc(env, chain, 'getBalance', [faucetAddress, { commitment: 'confirmed' }])).value);
         const whole = lamports / 1_000_000_000n;
         const frac = (lamports % 1_000_000_000n).toString().padStart(9, '0').slice(0, 3);
         balance = `${whole}.${frac}`;
@@ -386,18 +418,14 @@ async function chainInfo(env) {
         console.error('info balance lookup failed', err?.message || err);
     }
     return {
-        slug: 'devnet',
-        name: 'Devnet',
-        dripAmount: '0.01',
-        symbol: 'SOL',
-        cooldownSeconds: cooldownSeconds(env),
+        ...chainSummary(env, chain),
         explorerUrl: 'https://explorer.solana.com',
         faucetAddress,
         faucetExplorerUrl: faucetAddress
-            ? `https://explorer.solana.com/address/${faucetAddress}?cluster=devnet`
+            ? `https://explorer.solana.com/address/${faucetAddress}?cluster=${chain.slug}`
             : null,
         balance,
-        paused: isPaused(env),
+        paused: isPaused(env, chain.slug),
     };
 }
 
@@ -437,38 +465,33 @@ export default {
         }
         if (request.method === 'GET' && url.pathname === '/api/chains') {
             return json(request, env, {
-                chains: [{
-                    slug: 'devnet',
-                    name: 'Devnet',
-                    dripAmount: '0.01',
-                    cooldownSeconds: cooldownSeconds(env),
-                    symbol: 'SOL',
-                    explorerUrl: 'https://explorer.solana.com/?cluster=devnet',
-                }],
+                chains: CHAINS.map((chain) => chainSummary(env, chain)),
             });
         }
         const infoMatch = url.pathname.match(/^\/api\/([^/]+)\/info$/);
         if (request.method === 'GET' && infoMatch) {
-            if (infoMatch[1] !== 'devnet') {
+            const chain = getChain(infoMatch[1]);
+            if (!chain) {
                 return json(request, env, { error: 'Unknown chain' }, 404);
             }
-            return json(request, env, await chainInfo(env));
+            return json(request, env, await chainInfo(env, chain));
         }
         const cooldownMatch = url.pathname.match(/^\/api\/([^/]+)\/cooldown\/([^/]+)$/);
         if (request.method === 'GET' && cooldownMatch) {
-            if (cooldownMatch[1] !== 'devnet') {
+            const chain = getChain(cooldownMatch[1]);
+            if (!chain) {
                 return json(request, env, { error: 'Unknown chain' }, 404);
             }
             const address = decodeURIComponent(cooldownMatch[2]);
             if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)) {
                 return json(request, env, { error: 'Invalid address' }, 400);
             }
-            const claimedAt = await lastClaim(env.COOLDOWN_KV, `devnet:addr:${address}`);
+            const claimedAt = await lastClaim(env.COOLDOWN_KV, `${chain.slug}:addr:${address}`);
             const cooldown = cooldownSeconds(env);
             const next = claimedAt == null ? null : claimedAt + cooldown * 1000;
             const canClaim = next == null || Date.now() >= next;
             return json(request, env, {
-                chain: 'devnet',
+                chain: chain.slug,
                 address,
                 canClaim,
                 lastClaimAt: claimedAt,
@@ -477,10 +500,11 @@ export default {
         }
         const dripMatch = url.pathname.match(/^\/api\/([^/]+)\/drip$/);
         if (request.method === 'POST' && dripMatch) {
-            if (dripMatch[1] !== 'devnet') {
+            const chain = getChain(dripMatch[1]);
+            if (!chain) {
                 return json(request, env, { error: 'Unknown chain' }, 404);
             }
-            if (isPaused(env)) {
+            if (isPaused(env, chain.slug)) {
                 return json(request, env, { error: 'Faucet is paused for this chain' }, 503);
             }
             let body;
@@ -501,7 +525,7 @@ export default {
             const now = Date.now();
             const cooldown = cooldownSeconds(env);
             const ipHash = await hashIp(ip, env.IP_HASH_SALT || 'solwallet-faucet');
-            const keys = [`devnet:addr:${address}`, `devnet:ip:${ipHash}`];
+            const keys = [`${chain.slug}:addr:${address}`, `${chain.slug}:ip:${ipHash}`];
             for (const key of keys) {
                 const claimedAt = await lastClaim(env.COOLDOWN_KV, key);
                 if (claimedAt != null && now < claimedAt + cooldown * 1000) {
@@ -512,7 +536,7 @@ export default {
                 }
             }
             try {
-                const { signature } = await enqueue(() => sendDrip(env, address));
+                const { signature } = await enqueue(() => sendDrip(env, chain, address));
                 const ttl = Math.max(cooldown * 2, 86_400);
                 await Promise.all(keys.map((key) => env.COOLDOWN_KV.put(
                     key,
@@ -522,11 +546,11 @@ export default {
                 const nextClaimAt = now + cooldown * 1000;
                 return json(request, env, {
                     ok: true,
-                    chain: 'devnet',
+                    chain: chain.slug,
                     amount: '0.01',
                     symbol: 'SOL',
                     txHash: signature,
-                    explorerTxUrl: `https://explorer.solana.com/tx/${signature}?cluster=devnet`,
+                    explorerTxUrl: `https://explorer.solana.com/tx/${signature}?cluster=${chain.slug}`,
                     nextClaimAt,
                 });
             } catch (err) {

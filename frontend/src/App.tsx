@@ -9,12 +9,14 @@ import {
 import { formatCountdown, validateAddress } from "./validation";
 import { Turnstile } from "./Turnstile";
 
-const DEFAULT_CHAIN_SLUG = "devnet";
-const DEFAULT_CHAIN_NAME = "Devnet";
+const NETWORKS = [
+  { slug: "devnet", name: "Devnet" },
+  { slug: "testnet", name: "Testnet" },
+] as const;
 const DEFAULT_SITE_KEY = "0x4AAAAAAFNrgxVXJd78eOr1";
 
 export function App() {
-  const [slug] = useState(DEFAULT_CHAIN_SLUG);
+  const [slug, setSlug] = useState<(typeof NETWORKS)[number]["slug"]>("devnet");
   const [info, setInfo] = useState<ChainInfo | null>(null);
   const [address, setAddress] = useState("");
   const [token, setToken] = useState("");
@@ -132,9 +134,18 @@ export function App() {
     }
   }
 
+  function onNetworkChange(next: string) {
+    if (next !== "devnet" && next !== "testnet") return;
+    setSlug(next);
+    setError(null);
+    setSuccess(null);
+    setToken("");
+    setResetSignal((n) => n + 1);
+  }
+
   const faucetHref = info?.faucetExplorerUrl
     ?? (info?.faucetAddress
-      ? `${info.explorerUrl.replace(/\/$/, "")}/address/${info.faucetAddress}?cluster=devnet`
+      ? `${info.explorerUrl.replace(/\/$/, "")}/address/${info.faucetAddress}?cluster=${slug}`
       : null);
 
   return (
@@ -142,21 +153,28 @@ export function App() {
       <div className="atmosphere" aria-hidden="true" />
       <header className="hero">
         <p className="brand">Sol Faucet</p>
-        <h1 className="headline">Devnet SOL, on tap.</h1>
+        <h1 className="headline">Devnet and Testnet SOL, on tap.</h1>
         <p className="lede">
           Claim a small amount for development. Cooldown applies per address and IP.
         </p>
       </header>
 
       <main className="panel">
-        {loading ? (
+        {loading && !info ? (
           <p className="hint">Loading faucet…</p>
         ) : (
           <form className="form" onSubmit={onSubmit} noValidate>
             <label className="field">
               <span>Network</span>
-              <select value={slug} disabled aria-disabled="true">
-                <option value={DEFAULT_CHAIN_SLUG}>{DEFAULT_CHAIN_NAME}</option>
+              <select
+                value={slug}
+                onChange={(event) => onNetworkChange(event.target.value)}
+              >
+                {NETWORKS.map((network) => (
+                  <option key={network.slug} value={network.slug}>
+                    {network.name}
+                  </option>
+                ))}
               </select>
             </label>
 

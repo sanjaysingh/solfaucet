@@ -1,8 +1,8 @@
 # Sol Faucet
 
-A Devnet faucet for claiming small amounts of SOL while building and testing. Live at [solfaucet.sanjaysingh.net](https://solfaucet.sanjaysingh.net/).
+A Devnet and Testnet faucet for claiming small amounts of SOL while building and testing. Live at [solfaucet.sanjaysingh.net](https://solfaucet.sanjaysingh.net/).
 
-Devnet is the only network enabled. Each claim is rate-limited (per address and IP), behind a captcha, and sends 0.01 SOL from a wallet configured on the faucet worker.
+Devnet and Testnet are both enabled. Each claim is rate-limited (per address and IP, separately on each network), behind a captcha, and sends 0.01 SOL from a wallet configured on the faucet worker.
 
 ## Tech stack
 
@@ -20,12 +20,12 @@ worker/     API
 
 ## How it works
 
-Devnet defaults:
+Devnet and Testnet defaults:
 
 - `0.01` SOL per claim
-- 24h cooldown per address and per IP
+- 24h cooldown per address and per IP, tracked separately on each network
 
-Keep the faucet wallet lightly funded on Devnet. Do not point it at a wallet that holds mainnet SOL.
+Keep the faucet wallet lightly funded on both Devnet and Testnet. The same secret is used for both unless a network-specific secret is set. Do not point it at a wallet that holds mainnet SOL.
 
 Browser requests are restricted by the `ALLOWED_ORIGINS` setting in
 [`worker/wrangler.jsonc`](worker/wrangler.jsonc). The deployed configuration
@@ -114,15 +114,15 @@ npx wrangler secret put TURNSTILE_SECRET_KEY
 npx wrangler secret put FAUCET_SECRET_KEY
 ```
 
-`FAUCET_SECRET_KEY` is a Devnet wallet secret: base58, or the JSON byte array from `solana-keygen`. The account must hold enough SOL for each 0.01 drip, the fee, and the rent-exempt minimum.
+`FAUCET_SECRET_KEY` is the faucet wallet secret: base58, or the JSON byte array from `solana-keygen`. It is used for both Devnet and Testnet. Set `FAUCET_SECRET_KEY_DEVNET` or `FAUCET_SECRET_KEY_TESTNET` only when a network should use a different wallet. Each account must hold enough SOL on that network for each 0.01 drip, the fee, and the rent-exempt minimum.
 
 Vars already in `wrangler.jsonc`:
 
 - `ALLOWED_ORIGINS` — the deployed sites plus localhost and `127.0.0.1` on ports `5173`, `8000`, and `9876`
-- `RPC_URL` — `https://api.devnet.solana.com`
+- `RPC_URL` — optional Devnet override. The defaults are `https://api.devnet.solana.com` and `https://api.testnet.solana.com`. `RPC_URL_DEVNET` and `RPC_URL_TESTNET` override one network.
 - `DRIP_LAMPORTS` — `10000000` (0.01 SOL)
 - `COOLDOWN_SECONDS` — `86400`
-- `PAUSED_CHAINS` — optional, e.g. `devnet` to shut the faucet off
+- `PAUSED_CHAINS` — optional, e.g. `testnet` to shut one network off
 
 ### GitHub Actions
 
