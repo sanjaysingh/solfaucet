@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { fetchChainInfo, requestDrip } from "./api";
+import { fetchChainInfo, fetchSolUsdPrice, requestDrip } from "./api";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -17,6 +17,24 @@ describe("api", () => {
     );
     const info = await fetchChainInfo("devnet");
     expect(info.symbol).toBe("SOL");
+  });
+
+  it("reads the SOL dollar price", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({
+        data: { amount: "150.25", base: "SOL", currency: "USD" },
+      }), { status: 200 })),
+    );
+    await expect(fetchSolUsdPrice()).resolves.toBe(150.25);
+  });
+
+  it("returns null when the price feed fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("nope", { status: 500 })),
+    );
+    await expect(fetchSolUsdPrice()).resolves.toBeNull();
   });
 
   it("surfaces the faucet error", async () => {

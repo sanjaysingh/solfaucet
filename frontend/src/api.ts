@@ -69,6 +69,19 @@ export async function fetchChainInfo(slug: string): Promise<ChainInfo> {
   return parseJson<ChainInfo>(res);
 }
 
+/** Mainnet SOL/USD spot price, used to show a dollar value for faucet balances. */
+export async function fetchSolUsdPrice(): Promise<number | null> {
+  try {
+    const res = await fetch("https://api.coinbase.com/v2/prices/SOL-USD/spot");
+    if (!res.ok) return null;
+    const data = (await res.json()) as { data?: { amount?: string } };
+    const usd = Number(data?.data?.amount);
+    return Number.isFinite(usd) && usd > 0 ? usd : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchCooldown(
   slug: string,
   address: string,

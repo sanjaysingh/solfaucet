@@ -156,6 +156,14 @@ select:focus {
   font-weight: 500;
 }
 
+.stat-usd {
+  display: block;
+  margin-top: 0.15rem;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 .cta {
   appearance: none;
   border: 0;
@@ -228,6 +236,21 @@ select:focus {
   font-family: var(--mono);
   font-size: 0.75rem;
   word-break: break-all;
+}
+
+.faucet-amounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.85rem;
+  align-items: baseline;
+  margin: 0.45rem 0 0;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 0.95rem;
+}
+
+.faucet-usd {
+  color: var(--muted);
 }
 
 @keyframes rise {

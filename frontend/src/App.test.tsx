@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import * as api from "./api";
 
@@ -30,6 +30,10 @@ const info = {
   paused: false,
 };
 
+beforeEach(() => {
+  vi.spyOn(api, "fetchSolUsdPrice").mockResolvedValue(200);
+});
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -46,11 +50,16 @@ describe("App", () => {
       expect(select).toBeEnabled();
       expect(screen.getByRole("option", { name: "Testnet" })).toBeInTheDocument();
       expect(screen.getByText("0.01 SOL")).toBeInTheDocument();
+      expect(screen.getByRole("contentinfo")).toHaveTextContent("$300.00");
     });
     expect(screen.getByRole("link", { name: info.faucetAddress })).toHaveAttribute(
       "href",
       info.faucetExplorerUrl,
     );
+    const footer = screen.getByRole("contentinfo");
+    expect(footer).toHaveTextContent(info.faucetAddress);
+    expect(footer).toHaveTextContent("1.500 SOL");
+    expect(footer).toHaveTextContent("$300.00");
   });
 
   it("validates the address before submitting", async () => {

@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import {
   fetchChainInfo,
   fetchCooldown,
+  fetchSolUsdPrice,
   requestDrip,
   type ChainInfo,
   type DripSuccess,
@@ -15,6 +16,22 @@ const NETWORKS = [
 ] as const;
 const DEFAULT_SITE_KEY = "0x4AAAAAAFNrgxVXJd78eOr1";
 
+function formatUsd(amount: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function balanceUsd(balance: string | null | undefined, solUsd: number | null): number | null {
+  if (balance == null || solUsd == null) return null;
+  const sol = Number(balance);
+  if (!Number.isFinite(sol)) return null;
+  return sol * solUsd;
+}
+
 export function App() {
   const [slug, setSlug] = useState<(typeof NETWORKS)[number]["slug"]>("devnet");
   const [info, setInfo] = useState<ChainInfo | null>(null);
@@ -27,6 +44,7 @@ export function App() {
   const [success, setSuccess] = useState<DripSuccess | null>(null);
   const [nextClaimAt, setNextClaimAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [solUsd, setSolUsd] = useState<number | null>(null);
 
   const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || DEFAULT_SITE_KEY;
   const cooldownHint =
@@ -37,6 +55,16 @@ export function App() {
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchSolUsdPrice().then((price) => {
+      if (!cancelled && price != null) setSolUsd(price);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -147,6 +175,9 @@ export function App() {
     ?? (info?.faucetAddress
       ? `${info.explorerUrl.replace(/\/$/, "")}/address/${info.faucetAddress}?cluster=${slug}`
       : null);
+  const usd = balanceUsd(info?.balance, solUsd);
+  const balanceLabel =
+    info?.balance != null ? `${Number(info.balance).toFixed(3)} ${info.symbol}` : null;
 
   return (
     <div className="page">
@@ -192,11 +223,8 @@ export function App() {
                 </div>
                 <div>
                   <span className="stat-label">Balance</span>
-                  <strong>
-                    {info.balance != null
-                      ? `${Number(info.balance).toFixed(3)} ${info.symbol}`
-                      : "—"}
-                  </strong>
+                  <strong>{balanceLabel ?? "—"}</strong>
+                  {usd != null && <span className="stat-usd">{formatUsd(usd)}</span>}
                 </div>
               </div>
             )}
@@ -253,12 +281,18 @@ export function App() {
 
       {info?.faucetAddress && faucetHref && (
         <footer className="footer">
+          <p className="stat-label">Faucet</p>
           <p className="mono">
-            Faucet:{" "}
             <a href={faucetHref} target="_blank" rel="noreferrer">
               {info.faucetAddress}
             </a>
           </p>
+          {(balanceLabel || usd != null) && (
+            <p className="faucet-amounts">
+              {balanceLabel && <span>{balanceLabel}</span>}
+              {usd != null && <span className="faucet-usd">{formatUsd(usd)}</span>}
+            </p>
+          )}
         </footer>
       )}
     </div>
